@@ -14,9 +14,20 @@
 3. Render detecta el `render.yaml`. Si te pide datos: Runtime **Node**, Build `npm install`, Start `npm start`, Plan **Free**.
 4. **Create Web Service**. Listo.
 
-> **Nota sobre el plan Free:** el disco es efímero, así que la base se reinicia con datos de demo en cada redeploy/reinicio (la app se auto-siembra al arrancar). Para datos persistentes, usa un plan con disco o conecta una base de datos (PostgreSQL). El plan Free también "duerme" tras inactividad y tarda ~30s en despertar la primera visita.
+> **Persistencia (PostgreSQL):** el `render.yaml` ya aprovisiona una base **PostgreSQL gratis** (`fialo-db`) y la conecta vía `DATABASE_URL`. Con eso **los datos NO se borran** en los redeploys. La app detecta `DATABASE_URL` y usa Postgres; sin ella (local) usa un archivo JSON. La primera vez se auto-siembra con datos de demo.
+>
+> **Plan Free:** el servicio "duerme" tras ~15 min sin uso y tarda ~30s en despertar la primera visita. La **base PostgreSQL gratis de Render expira a los ~30 días** (luego hay que recrearla o pasar a un plan pago para uso continuo).
 >
 > **Activar Claude en producción:** en Render → tu servicio → **Environment** → agrega `ANTHROPIC_API_KEY`. Sin ella funciona en modo reglas.
+
+## 💾 Backend de datos
+
+| Entorno | Backend | Cómo se activa |
+|---------|---------|----------------|
+| Local (dev) | Archivo `data/db.json` | Por defecto (sin `DATABASE_URL`) |
+| Render / producción | PostgreSQL (documento JSONB) | Automático cuando existe `DATABASE_URL` |
+
+La capa de datos (`db.js`) mantiene los registros en memoria y persiste en el backend correspondiente, con guardado *debounced* en Postgres (sin escrituras solapadas). Migrar a tablas relacionales normalizadas es el siguiente paso natural cuando crezca el volumen.
 
 
 > 📄 La estrategia completa (modelo de negocio, monetización, mercado, go-to-market) está en **[PLAN_DE_NEGOCIO.md](PLAN_DE_NEGOCIO.md)**.

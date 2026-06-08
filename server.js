@@ -2,10 +2,12 @@
 import express from 'express';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { db, uid, seedIfEmpty } from './db.js';
+import { db, uid, seedIfEmpty, initDb } from './db.js';
 import { evaluarCredito, mensajeCobranza } from './ai.js';
 
-// En Render (disco efímero) la BD arranca vacía: sembramos datos de demo.
+// Inicializa el backend de datos (Postgres en producción, archivo en local).
+await initDb();
+// Si la base arranca vacía (p. ej. primer deploy en Render), siembra datos de demo.
 if (seedIfEmpty()) console.log('Base vacía → datos de demo sembrados.');
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

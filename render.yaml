@@ -1,5 +1,12 @@
-# Blueprint de Render — despliega Fíalo como Web Service.
-# Render leerá este archivo automáticamente al crear el servicio desde el repo.
+# Blueprint de Render — despliega Fíalo (web) + PostgreSQL gratis.
+# Render lee este archivo al crear el servicio desde el repo y lo configura todo.
+
+databases:
+  - name: fialo-db
+    plan: free
+    databaseName: fialo
+    user: fialo
+
 services:
   - type: web
     name: fialo
@@ -11,6 +18,11 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 22.11.0
+      # Conexión a la base PostgreSQL provisionada arriba (persistente).
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fialo-db
+          property: connectionString
       # Para activar Claude, agrega tu clave en el panel de Render (Environment):
       # - key: ANTHROPIC_API_KEY
       #   sync: false

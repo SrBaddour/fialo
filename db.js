@@ -1,5 +1,8 @@
-// db.js — Almacén de datos simple basado en JSON (cero dependencias nativas).
-// Para producción se migra a PostgreSQL/SQLite sin cambiar la API de este módulo.
+// db.js — Almacén de datos con backend dual:
+//   • Si existe DATABASE_URL  → PostgreSQL (un documento JSONB). Para Render/producción.
+//   • Si no                   → archivo JSON local. Para desarrollo sin configuración.
+// La API pública (insert/update/find/filter/remove/set) es síncrona en ambos casos:
+// los datos viven en memoria (cache) y persist() guarda en el backend correspondiente.
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -7,11 +10,16 @@ import { dirname, join } from 'node:path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, 'data');
 const DB_PATH = join(DATA_DIR, 'db.json');
-if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
 
 const EMPTY = { comercios: [], clientes: [], ventas: [], pagos: [], productos: [] };
+const USE_PG = !!process.env.DATABASE_URL;
 
-function load() {
+let cache = structuredClone(EMPTY);
+let pgPool = null;
+
+// ---------- Backend: archivo JSON ----------
+function loadFile() {
+  if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
   if (!existsSync(DB_PATH)) return structuredClone(EMPTY);
   try {
     return { ...structuredClone(EMPTY), ...JSON.parse(readFileSync(DB_PATH, 'utf8')) };
@@ -19,11 +27,60 @@ function load() {
     return structuredClone(EMPTY);
   }
 }
+function saveFile() {
+  if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+  writeFileSync(DB_PATH, JSON.stringify(cache, null, 2));
+}
 
-let cache = load();
+// ---------- Backend: PostgreSQL (un solo documento JSONB) ----------
+async function initPg() {
+  const { default: pg } = await import('pg');
+  const needSsl = !/localhost|127\.0\.0\.1/.test(process.env.DATABASE_URL);
+  pgPool = new pg.Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: needSsl ? { rejectUnauthorized: false } : false,
+  });
+  await pgPool.query('CREATE TABLE IF NOT EXISTS fialo_store (id text PRIMARY KEY, doc jsonb NOT NULL)');
+  const { rows } = await pgPool.query("SELECT doc FROM fialo_store WHERE id = 'main'");
+  cache = rows.length ? { ...structuredClone(EMPTY), ...rows[0].doc } : structuredClone(EMPTY);
+}
+
+// Guardado en PG con debounce: nunca solapa dos escrituras y siempre persiste el último estado.
+let saving = false;
+let dirty = false;
+async function savePg() {
+  if (saving) { dirty = true; return; }
+  saving = true;
+  try {
+    do {
+      dirty = false;
+      await pgPool.query(
+        "INSERT INTO fialo_store (id, doc) VALUES ('main', $1::jsonb) " +
+          'ON CONFLICT (id) DO UPDATE SET doc = EXCLUDED.doc',
+        [JSON.stringify(cache)]
+      );
+    } while (dirty);
+  } catch (e) {
+    console.error('Error guardando en Postgres:', e.message);
+  } finally {
+    saving = false;
+  }
+}
 
 function persist() {
-  writeFileSync(DB_PATH, JSON.stringify(cache, null, 2));
+  if (USE_PG) savePg(); // asíncrono (debounced); la API pública no espera
+  else saveFile();
+}
+
+// Inicializa el backend. El servidor debe await initDb() antes de listen().
+export async function initDb() {
+  if (USE_PG) {
+    await initPg();
+    console.log('DB: PostgreSQL');
+  } else {
+    cache = loadFile();
+    console.log('DB: archivo JSON local');
+  }
 }
 
 export const db = {
