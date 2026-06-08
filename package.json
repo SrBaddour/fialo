@@ -1,0 +1,31 @@
+{
+  "name": "fialo",
+  "version": "0.1.0",
+  "description": "Fíalo — SaaS de gestión de crédito y cuotas (BNPL) para comercios venezolanos, con scoring y cobranza asistidos por IA (Claude).",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "seed": "node db.js --seed"
+  },
+  "keywords": [
+    "bnpl",
+    "fintech",
+    "venezuela",
+    "cashea",
+    "credito",
+    "cuotas",
+    "claude",
+    "ia"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "xlsx": "^0.18.5"
+  }
+}

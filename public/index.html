@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fíalo — Crédito y cuotas para tu comercio</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <div class="brand">💳 Fíalo</div>
+    <div class="tag">Vende a cuotas como Cashea — en tu propio comercio</div>
+  </header>
+
+  <main>
+    <section class="kpis" id="kpis"></section>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="clientes">Clientes</button>
+      <button class="tab" data-tab="inventario">Inventario</button>
+      <button class="tab" data-tab="venta">Nueva venta</button>
+      <button class="tab" data-tab="ventas">Ventas y cobranza</button>
+      <button class="tab" data-tab="scoring">Simulador IA</button>
+    </nav>
+
+    <!-- Clientes -->
+    <section class="panel active" id="tab-clientes">
+      <h2>Clientes</h2>
+      <div class="row">
+        <form id="form-cliente" class="card form">
+          <h3>Registrar cliente (con scoring IA)</h3>
+          <input name="nombre" placeholder="Nombre y apellido" required />
+          <input name="cedula" placeholder="Cédula (V-12.345.678)" />
+          <input name="telefono" placeholder="Teléfono +58..." />
+          <input name="ingresoMensualUsd" type="number" placeholder="Ingreso mensual (USD)" />
+          <select name="historialPagos">
+            <option value="excelente">Historial: excelente</option>
+            <option value="bueno" selected>Historial: bueno</option>
+            <option value="regular">Historial: regular</option>
+            <option value="malo">Historial: malo</option>
+          </select>
+          <input name="moraDias" type="number" placeholder="Días en mora (0 si ninguno)" value="0" />
+          <button type="submit">Evaluar y registrar</button>
+        </form>
+        <div class="card" style="flex:2">
+          <table id="tabla-clientes"><thead><tr>
+            <th>Cliente</th><th>Nivel</th><th>Score</th><th>Límite</th><th>Teléfono</th>
+          </tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Inventario -->
+    <section class="panel" id="tab-inventario">
+      <h2>Inventario de productos</h2>
+      <div class="toolbar">
+        <button id="btn-plantilla" class="ghost">⬇️ Descargar plantilla Excel</button>
+        <label class="btn-file">📤 Importar Excel/CSV<input type="file" id="file-import" accept=".xlsx,.xls,.csv" hidden /></label>
+        <select id="import-modo" title="Modo de importación">
+          <option value="agregar">Agregar / actualizar por SKU</option>
+          <option value="reemplazar">Reemplazar todo el inventario</option>
+        </select>
+        <button id="btn-export" class="ghost">⬆️ Exportar a Excel</button>
+        <input id="buscar-prod" placeholder="🔎 Buscar producto..." />
+      </div>
+
+      <div class="row">
+        <form id="form-producto" class="card form">
+          <h3>Agregar producto</h3>
+          <input name="sku" placeholder="SKU (opcional)" />
+          <input name="nombre" placeholder="Descripción / nombre" required />
+          <input name="categoria" placeholder="Categoría" />
+          <input name="precioUsd" type="number" step="0.01" placeholder="Precio (USD)" required />
+          <input name="stock" type="number" placeholder="Unidades en stock" required />
+          <input name="stockMin" type="number" placeholder="Stock mínimo (alerta)" value="1" />
+          <button type="submit">Agregar</button>
+        </form>
+        <div class="card" style="flex:3">
+          <table id="tabla-productos"><thead><tr>
+            <th>SKU</th><th>Descripción</th><th>Categoría</th><th>Precio</th><th>Stock</th><th></th>
+          </tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Nueva venta -->
+    <section class="panel" id="tab-venta">
+      <h2>Nueva venta a crédito</h2>
+      <form id="form-venta" class="card form">
+        <label class="lbl">Cliente</label>
+        <select name="clienteId" id="venta-cliente"></select>
+        <label class="lbl">Producto</label>
+        <select name="productoId" id="venta-producto"></select>
+        <label class="lbl">Cantidad</label>
+        <input name="cantidad" id="venta-cantidad" type="number" min="1" value="1" />
+        <div id="venta-total" class="muted"></div>
+        <button type="submit">Generar plan de pago</button>
+      </form>
+      <div id="plan-resultado"></div>
+    </section>
+
+    <!-- Ventas y cobranza -->
+    <section class="panel" id="tab-ventas">
+      <h2>Ventas y cobranza</h2>
+      <div id="lista-ventas"></div>
+    </section>
+
+    <!-- Simulador scoring -->
+    <section class="panel" id="tab-scoring">
+      <h2>Simulador de scoring crediticio (IA)</h2>
+      <p class="muted">Evalúa el riesgo de un cliente sin guardarlo. Usa Claude si hay API key, o reglas si no.</p>
+      <form id="form-scoring" class="card form">
+        <input name="ingresoMensualUsd" type="number" placeholder="Ingreso mensual (USD)" value="300" />
+        <select name="historialPagos">
+          <option value="excelente">excelente</option>
+          <option value="bueno" selected>bueno</option>
+          <option value="regular">regular</option>
+          <option value="malo">malo</option>
+        </select>
+        <input name="moraDias" type="number" placeholder="Días en mora" value="0" />
+        <button type="submit">Evaluar</button>
+      </form>
+      <div id="scoring-resultado"></div>
+    </section>
+  </main>
+
+  <footer>Fíalo MVP · demo local · datos de prueba</footer>
+  <div id="modal" class="modal hidden"><div class="modal-box"><div id="modal-body"></div><button id="modal-close">Cerrar</button></div></div>
+  <script src="vendor/xlsx.full.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
