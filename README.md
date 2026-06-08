@@ -2,6 +2,23 @@
 
 **SaaS de gestión de crédito y cuotas (BNPL) para comercios venezolanos**, con scoring y cobranza asistidos por IA (Claude). Es una "mini-Cashea" que cada comercio opera con su propia marca y su propia cartera.
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/SrBaddour/fialo)
+
+## 🚀 Publicar en Render (gratis)
+
+**Opción rápida (1 clic):** pulsa el botón de arriba → inicia sesión en Render → autoriza GitHub → Render lee `render.yaml` y despliega solo. En 2-3 min tendrás una URL pública `https://fialo.onrender.com` para compartir.
+
+**Opción manual:**
+1. Entra a [dashboard.render.com](https://dashboard.render.com) → **New → Web Service**.
+2. Conecta tu GitHub y elige el repo `SrBaddour/fialo`.
+3. Render detecta el `render.yaml`. Si te pide datos: Runtime **Node**, Build `npm install`, Start `npm start`, Plan **Free**.
+4. **Create Web Service**. Listo.
+
+> **Nota sobre el plan Free:** el disco es efímero, así que la base se reinicia con datos de demo en cada redeploy/reinicio (la app se auto-siembra al arrancar). Para datos persistentes, usa un plan con disco o conecta una base de datos (PostgreSQL). El plan Free también "duerme" tras inactividad y tarda ~30s en despertar la primera visita.
+>
+> **Activar Claude en producción:** en Render → tu servicio → **Environment** → agrega `ANTHROPIC_API_KEY`. Sin ella funciona en modo reglas.
+
+
 > 📄 La estrategia completa (modelo de negocio, monetización, mercado, go-to-market) está en **[PLAN_DE_NEGOCIO.md](PLAN_DE_NEGOCIO.md)**.
 
 ---
