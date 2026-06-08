@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fíalo — Acceso</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    body { display:flex; min-height:100vh; align-items:center; justify-content:center; }
+    .auth-wrap { width:100%; max-width:420px; padding:20px; }
+    .auth-card { background:#fff; border-radius:16px; padding:28px; box-shadow:0 10px 30px rgba(0,0,0,.12); }
+    .auth-logo { text-align:center; font-size:34px; font-weight:800; color:var(--azul); }
+    .auth-sub { text-align:center; color:var(--muted); margin-bottom:22px; font-size:14px; }
+    .auth-card .form { max-width:none; }
+    .auth-tabs { display:flex; gap:6px; margin-bottom:18px; }
+    .auth-tabs button { flex:1; background:#e2e8f0; color:var(--txt); }
+    .auth-tabs button.active { background:var(--azul); color:#fff; }
+    .auth-err { background:#fee2e2; color:#991b1b; padding:10px; border-radius:8px; font-size:14px; margin-bottom:10px; display:none; }
+    .demo-hint { text-align:center; font-size:13px; color:var(--muted); margin-top:14px; }
+    .demo-hint code { background:#eef2ff; color:#3730a3; padding:2px 6px; border-radius:6px; }
+  </style>
+</head>
+<body>
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <div class="auth-logo">💳 Fíalo</div>
+      <div class="auth-sub">Crédito y cuotas para tu comercio</div>
+
+      <div class="auth-tabs">
+        <button id="tab-login" class="active" type="button">Iniciar sesión</button>
+        <button id="tab-register" type="button">Crear cuenta</button>
+      </div>
+
+      <div class="auth-err" id="err"></div>
+
+      <!-- Login -->
+      <form id="form-login" class="form">
+        <input name="email" type="email" placeholder="Email" required autocomplete="username" />
+        <input name="password" type="password" placeholder="Contraseña" required autocomplete="current-password" />
+        <button type="submit">Entrar</button>
+      </form>
+
+      <!-- Registro -->
+      <form id="form-register" class="form" style="display:none">
+        <input name="comercioNombre" placeholder="Nombre del comercio" required />
+        <input name="rubro" placeholder="Rubro (ej: Electrodomésticos)" />
+        <input name="nombre" placeholder="Tu nombre" />
+        <input name="email" type="email" placeholder="Email" required autocomplete="username" />
+        <input name="password" type="password" placeholder="Contraseña (mín. 6)" required autocomplete="new-password" />
+        <button type="submit">Crear cuenta y entrar</button>
+      </form>
+
+      <div class="demo-hint">Demo: <code>admin@fialo.com</code> / <code>demo1234</code></div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const err = $('#err');
+    const showErr = (m) => { err.textContent = m; err.style.display = 'block'; };
+
+    $('#tab-login').onclick = () => switchTab('login');
+    $('#tab-register').onclick = () => switchTab('register');
+    function switchTab(which) {
+      err.style.display = 'none';
+      $('#tab-login').classList.toggle('active', which === 'login');
+      $('#tab-register').classList.toggle('active', which === 'register');
+      $('#form-login').style.display = which === 'login' ? 'flex' : 'none';
+      $('#form-register').style.display = which === 'register' ? 'flex' : 'none';
+    }
+
+    async function post(url, body) {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || 'Error');
+      return data;
+    }
+
+    $('#form-login').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      err.style.display = 'none';
+      try {
+        await post('/api/auth/login', Object.fromEntries(new FormData(e.target)));
+        location.href = '/';
+      } catch (ex) { showErr(ex.message); }
+    });
+
+    $('#form-register').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      err.style.display = 'none';
+      try {
+        await post('/api/auth/register', Object.fromEntries(new FormData(e.target)));
+        location.href = '/';
+      } catch (ex) { showErr(ex.message); }
+    });
+
+    // Si ya hay sesión, ir directo al dashboard.
+    fetch('/api/auth/me').then((r) => { if (r.ok) location.href = '/'; });
+  </script>
+</body>
+</html>

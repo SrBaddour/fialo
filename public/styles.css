@@ -1,7 +1,10 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 :root { --azul:#1e40af; --azul2:#3b82f6; --verde:#16a34a; --rojo:#dc2626; --bg:#f1f5f9; --card:#fff; --txt:#0f172a; --muted:#64748b; }
 body { font-family: system-ui, "Segoe UI", sans-serif; background: var(--bg); color: var(--txt); }
-header { background: linear-gradient(135deg, var(--azul), var(--azul2)); color:#fff; padding: 18px 28px; }
+header { background: linear-gradient(135deg, var(--azul), var(--azul2)); color:#fff; padding: 18px 28px; display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
+.user-box { display:flex; align-items:center; gap:12px; font-size:14px; }
+.user-box button { background:rgba(255,255,255,.2); color:#fff; }
+.user-box button:hover { background:rgba(255,255,255,.35); }
 .brand { font-size: 26px; font-weight: 800; }
 .tag { opacity: .9; font-size: 14px; margin-top: 2px; }
 main { max-width: 1100px; margin: 24px auto; padding: 0 16px; }

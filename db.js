@@ -11,7 +11,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, 'data');
 const DB_PATH = join(DATA_DIR, 'db.json');
 
-const EMPTY = { comercios: [], clientes: [], ventas: [], pagos: [], productos: [] };
+const EMPTY = { comercios: [], clientes: [], ventas: [], pagos: [], productos: [], usuarios: [] };
 const USE_PG = !!process.env.DATABASE_URL;
 
 let cache = structuredClone(EMPTY);
@@ -120,6 +120,8 @@ export const uid = (p = '') =>
   p + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
 
 // ---- Datos de demostración (ejecuta: npm run seed) ----
+import { hashPassword } from './auth.js';
+
 export function seed() {
   db.reset();
   const comercio = db.insert('comercios', {
@@ -127,6 +129,17 @@ export function seed() {
     nombre: 'Electro Zulia C.A.',
     rubro: 'Electrodomésticos',
     plan: 'pro', // free | pro | business
+    creado: new Date('2026-01-15').toISOString(),
+  });
+
+  // Usuario demo para iniciar sesión: admin@fialo.com / demo1234
+  db.insert('usuarios', {
+    id: uid('usr_'),
+    comercioId: comercio.id,
+    nombre: 'Administrador',
+    email: 'admin@fialo.com',
+    passwordHash: hashPassword('demo1234'),
+    rol: 'dueno',
     creado: new Date('2026-01-15').toISOString(),
   });
 
@@ -164,7 +177,7 @@ export function seed() {
       creado: new Date('2026-02-01').toISOString(),
     });
   }
-  console.log('Seed completo: 1 comercio, 3 clientes, ' + productosSeed.length + ' productos.');
+  console.log('Seed completo: 1 comercio, 1 usuario (admin@fialo.com / demo1234), 3 clientes, ' + productosSeed.length + ' productos.');
 }
 
 // Siembra solo si la base está vacía (útil en Render: disco efímero en plan free).

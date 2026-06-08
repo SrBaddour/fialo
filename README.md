@@ -36,6 +36,8 @@ La capa de datos (`db.js`) mantiene los registros en memoria y persiste en el ba
 
 ## Qué hace el MVP
 
+- **Autenticación multi-comercio**: registro e inicio de sesión por comercio, contraseñas cifradas (scrypt + sal), sesiones firmadas (HMAC) en cookie `HttpOnly`, y **aislamiento de datos** (cada comercio ve solo sus clientes, productos y ventas). Sin dependencias externas (solo `node:crypto`).
+  - **Usuario demo:** `admin@fialo.com` / `demo1234`
 - **Inventario de productos** (SKU, descripción, categoría, precio USD, stock, stock mínimo) con **alertas de stock bajo** y valor total del inventario.
 - **Carga masiva por Excel/CSV**: plantilla descargable, importación (agregar/actualizar por SKU o reemplazar todo) y exportación. Procesamiento en el navegador con SheetJS (offline).
 - **Registro de clientes con scoring crediticio** (IA o reglas) → nivel y límite de crédito automáticos.
@@ -103,7 +105,11 @@ fialo/
 
 | Método | Ruta | Qué hace |
 |--------|------|----------|
-| `GET`  | `/api/resumen` | KPIs del comercio |
+| `POST` | `/api/auth/register` | Crear comercio + usuario e iniciar sesión |
+| `POST` | `/api/auth/login` | Iniciar sesión |
+| `POST` | `/api/auth/logout` | Cerrar sesión |
+| `GET`  | `/api/auth/me` | Usuario y comercio de la sesión actual |
+| `GET`  | `/api/resumen` | KPIs del comercio *(requiere sesión)* |
 | `GET`/`POST` | `/api/productos` | Listar / crear producto |
 | `PUT`/`DELETE` | `/api/productos/:id` | Editar / eliminar producto |
 | `POST` | `/api/productos/importar` | Importación masiva (filas de Excel ya parseadas) |

@@ -23,6 +23,9 @@ services:
         fromDatabase:
           name: fialo-db
           property: connectionString
+      # Secreto para firmar las sesiones (Render genera un valor aleatorio seguro).
+      - key: SESSION_SECRET
+        generateValue: true
       # Para activar Claude, agrega tu clave en el panel de Render (Environment):
       # - key: ANTHROPIC_API_KEY
       #   sync: false

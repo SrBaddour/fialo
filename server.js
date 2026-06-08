@@ -4,6 +4,10 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { db, uid, seedIfEmpty, initDb } from './db.js';
 import { evaluarCredito, mensajeCobranza } from './ai.js';
+import {
+  hashPassword, verifyPassword, signToken, verifyToken,
+  parseCookies, setSessionCookie, clearSessionCookie, COOKIE_NAME,
+} from './auth.js';
 
 // Inicializa el backend de datos (Postgres en producción, archivo en local).
 await initDb();
@@ -12,14 +16,98 @@ if (seedIfEmpty()) console.log('Base vacía → datos de demo sembrados.');
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
+app.set('trust proxy', 1); // Render termina el TLS detrás de un proxy
 app.use(express.json());
+
+const norm = (s) => String(s || '').trim().toLowerCase();
+
+// ---------- Autenticación ----------
+// Registro: crea un comercio nuevo + su usuario dueño.
+app.post('/api/auth/register', (req, res) => {
+  const { comercioNombre, rubro, nombre, email, password } = req.body || {};
+  const mail = norm(email);
+  if (!comercioNombre || !mail || !password)
+    return res.status(400).json({ error: 'Faltan datos: nombre del comercio, email y contraseña.' });
+  if (String(password).length < 6)
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres.' });
+  if (db.find('usuarios', (u) => norm(u.email) === mail))
+    return res.status(409).json({ error: 'Ese email ya está registrado.' });
+
+  const comercio = db.insert('comercios', {
+    id: uid('com_'),
+    nombre: String(comercioNombre).trim(),
+    rubro: String(rubro || 'General').trim(),
+    plan: 'free',
+    creado: new Date().toISOString(),
+  });
+  const usuario = db.insert('usuarios', {
+    id: uid('usr_'),
+    comercioId: comercio.id,
+    nombre: String(nombre || 'Dueño').trim(),
+    email: mail,
+    passwordHash: hashPassword(password),
+    rol: 'dueno',
+    creado: new Date().toISOString(),
+  });
+  const token = signToken({ uid: usuario.id, cid: comercio.id });
+  setSessionCookie(req, res, token);
+  res.json({ ok: true, usuario: sanitizeUser(usuario), comercio });
+});
+
+app.post('/api/auth/login', (req, res) => {
+  const { email, password } = req.body || {};
+  const usuario = db.find('usuarios', (u) => norm(u.email) === norm(email));
+  if (!usuario || !verifyPassword(password, usuario.passwordHash))
+    return res.status(401).json({ error: 'Email o contraseña incorrectos.' });
+  const comercio = db.find('comercios', (c) => c.id === usuario.comercioId);
+  const token = signToken({ uid: usuario.id, cid: usuario.comercioId });
+  setSessionCookie(req, res, token);
+  res.json({ ok: true, usuario: sanitizeUser(usuario), comercio });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  clearSessionCookie(res);
+  res.json({ ok: true });
+});
+
+app.get('/api/auth/me', (req, res) => {
+  const sesion = sesionDe(req);
+  if (!sesion) return res.status(401).json({ error: 'No autenticado' });
+  res.json({ usuario: sanitizeUser(sesion.usuario), comercio: sesion.comercio });
+});
+
+function sanitizeUser(u) {
+  if (!u) return null;
+  const { passwordHash, ...rest } = u;
+  return rest;
+}
+
+// Devuelve { usuario, comercio } a partir de la cookie firmada, o null.
+function sesionDe(req) {
+  const token = parseCookies(req)[COOKIE_NAME];
+  const payload = verifyToken(token);
+  if (!payload) return null;
+  const usuario = db.find('usuarios', (u) => u.id === payload.uid);
+  const comercio = db.find('comercios', (c) => c.id === payload.cid);
+  if (!usuario || !comercio) return null;
+  return { usuario, comercio };
+}
+
+// Middleware: protege todas las rutas /api/* salvo las de /api/auth/*.
+app.use('/api', (req, res, next) => {
+  if (req.path.startsWith('/auth/')) return next();
+  const sesion = sesionDe(req);
+  if (!sesion) return res.status(401).json({ error: 'Sesión requerida. Inicia sesión.' });
+  req.comercio = sesion.comercio;
+  req.usuario = sesion.usuario;
+  next();
+});
+
+// Servir estáticos DESPUÉS de definir las APIs (no afecta, pero queda claro el orden).
 app.use(express.static(join(__dirname, 'public')));
 
-// Para el MVP trabajamos con un comercio "activo" (el primero). En producción
-// esto vendría de la sesión autenticada del comercio.
-function comercioActivo() {
-  return db.get('comercios')[0] || null;
-}
+// Helper: el comercio de la sesión actual.
+const comercioActivo = (req) => req.comercio;
 
 // ---------- Lógica BNPL (modelo tipo Cashea) ----------
 // Inicial 40% + 3 cuotas quincenales del 20% c/u. Configurable por comercio.
@@ -44,7 +132,7 @@ function generarPlanPago(montoUsd, { inicialPct = 0.4, nCuotas = 3, diasEntre = 
 
 // ---------- Endpoints ----------
 app.get('/api/resumen', (req, res) => {
-  const com = comercioActivo();
+  const com = comercioActivo(req);
   const clientes = db.filter('clientes', (c) => c.comercioId === com?.id);
   const ventas = db.filter('ventas', (v) => v.comercioId === com?.id);
   const productos = db.filter('productos', (p) => p.comercioId === com?.id);
@@ -83,7 +171,7 @@ app.get('/api/resumen', (req, res) => {
 
 // ---------- Inventario / Productos ----------
 app.get('/api/productos', (req, res) => {
-  const com = comercioActivo();
+  const com = comercioActivo(req);
   res.json(db.filter('productos', (p) => p.comercioId === com?.id));
 });
 
@@ -103,31 +191,33 @@ function normalizarProducto(row, comercioId) {
 }
 
 app.post('/api/productos', (req, res) => {
-  const com = comercioActivo();
+  const com = comercioActivo(req);
   const p = normalizarProducto(req.body || {}, com.id);
   if (!p.nombre) return res.status(400).json({ error: 'El producto requiere descripción/nombre.' });
   res.json(db.insert('productos', p));
 });
 
 app.put('/api/productos/:id', (req, res) => {
+  const com = comercioActivo(req);
+  const actual = db.find('productos', (p) => p.id === req.params.id && p.comercioId === com.id);
+  if (!actual) return res.status(404).json({ error: 'Producto no encontrado' });
   const b = req.body || {};
   const patch = {};
   for (const k of ['sku', 'nombre', 'categoria']) if (b[k] !== undefined) patch[k] = String(b[k]);
   for (const k of ['precioUsd', 'stock', 'stockMin']) if (b[k] !== undefined) patch[k] = Number(b[k]) || 0;
   if (b.activo !== undefined) patch.activo = !!b.activo;
-  const row = db.update('productos', req.params.id, patch);
-  if (!row) return res.status(404).json({ error: 'Producto no encontrado' });
-  res.json(row);
+  res.json(db.update('productos', req.params.id, patch));
 });
 
 app.delete('/api/productos/:id', (req, res) => {
-  const eliminados = db.remove('productos', (p) => p.id === req.params.id);
+  const com = comercioActivo(req);
+  const eliminados = db.remove('productos', (p) => p.id === req.params.id && p.comercioId === com.id);
   res.json({ ok: true, eliminados });
 });
 
 // Importación masiva desde Excel (el front envía filas ya parseadas como JSON)
 app.post('/api/productos/importar', (req, res) => {
-  const com = comercioActivo();
+  const com = comercioActivo(req);
   const filas = Array.isArray(req.body?.filas) ? req.body.filas : [];
   const modo = req.body?.modo === 'reemplazar' ? 'reemplazar' : 'agregar';
   if (modo === 'reemplazar') {
@@ -155,12 +245,12 @@ app.post('/api/productos/importar', (req, res) => {
 });
 
 app.get('/api/clientes', (req, res) => {
-  const com = comercioActivo();
+  const com = comercioActivo(req);
   res.json(db.filter('clientes', (c) => c.comercioId === com?.id));
 });
 
 app.post('/api/clientes', async (req, res) => {
-  const com = comercioActivo();
+  const com = comercioActivo(req);
   const body = req.body || {};
   const evalCredito = await evaluarCredito(body);
   const cliente = db.insert('clientes', {
@@ -186,14 +276,14 @@ app.post('/api/evaluar', async (req, res) => {
 });
 
 app.get('/api/ventas', (req, res) => {
-  const com = comercioActivo();
+  const com = comercioActivo(req);
   res.json(db.filter('ventas', (v) => v.comercioId === com?.id));
 });
 
 app.post('/api/ventas', (req, res) => {
-  const com = comercioActivo();
+  const com = comercioActivo(req);
   const { clienteId, productoId, cantidad, descripcion, montoUsd } = req.body || {};
-  const cliente = db.find('clientes', (c) => c.id === clienteId);
+  const cliente = db.find('clientes', (c) => c.id === clienteId && c.comercioId === com.id);
   if (!cliente) return res.status(400).json({ error: 'Cliente no existe' });
 
   // Construir la lista de ítems. Soporta venta por producto (con stock) o venta libre.
@@ -239,7 +329,8 @@ app.post('/api/ventas', (req, res) => {
 });
 
 app.post('/api/ventas/:id/pagar', (req, res) => {
-  const venta = db.find('ventas', (v) => v.id === req.params.id);
+  const com = comercioActivo(req);
+  const venta = db.find('ventas', (v) => v.id === req.params.id && v.comercioId === com.id);
   if (!venta) return res.status(404).json({ error: 'Venta no encontrada' });
   const n = Number(req.body?.n);
   const cuota = venta.cuotas.find((q) => q.n === n);
@@ -252,7 +343,8 @@ app.post('/api/ventas/:id/pagar', (req, res) => {
 
 // Generar mensaje de cobranza con IA
 app.post('/api/cobranza', async (req, res) => {
-  const venta = db.find('ventas', (v) => v.id === req.body?.ventaId);
+  const com = comercioActivo(req);
+  const venta = db.find('ventas', (v) => v.id === req.body?.ventaId && v.comercioId === com.id);
   if (!venta) return res.status(404).json({ error: 'Venta no encontrada' });
   const cuota = venta.cuotas.find((q) => q.n === Number(req.body?.n));
   const cliente = db.find('clientes', (c) => c.id === venta.clienteId);

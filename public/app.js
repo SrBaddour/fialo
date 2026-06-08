@@ -1,5 +1,9 @@
 const $ = (s) => document.querySelector(s);
-const api = (url, opts) => fetch(url, { headers: { 'content-type': 'application/json' }, ...opts }).then((r) => r.json());
+const api = (url, opts) =>
+  fetch(url, { headers: { 'content-type': 'application/json' }, ...opts }).then((r) => {
+    if (r.status === 401) { location.href = '/login.html'; throw new Error('Sesión expirada'); }
+    return r.json();
+  });
 const money = (n) => '$' + Number(n || 0).toFixed(2);
 const nivelBadge = (n) => `<span class="badge n${n}">Nivel ${n}</span>`;
 
@@ -247,6 +251,21 @@ function actualizarTotalVenta() {
 $('#venta-producto').addEventListener('change', actualizarTotalVenta);
 $('#venta-cantidad').addEventListener('input', actualizarTotalVenta);
 
-cargarResumen();
-cargarClientes();
-cargarSelectoresVenta();
+// ===================== SESIÓN =====================
+$('#btn-logout').addEventListener('click', async () => {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  location.href = '/login.html';
+});
+
+async function init() {
+  // Verifica sesión; si no hay, redirige a login.
+  const r = await fetch('/api/auth/me');
+  if (!r.ok) { location.href = '/login.html'; return; }
+  const { usuario, comercio } = await r.json();
+  $('#user-info').textContent = `${comercio.nombre} · ${usuario.email}`;
+  cargarResumen();
+  cargarClientes();
+  cargarSelectoresVenta();
+}
+
+init();
